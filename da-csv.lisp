@@ -2,5 +2,17 @@
 
 (in-package #:da-csv)
 
-;;; "da-csv" goes here. Hacks and glory await!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;;
+;;; 1. Define dynamic variables that control delimited file operation
+;;;    and defaults for functions
+;;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(defparameter *delimiter-char* #\,
+  "The delimiting character")
+(defparameter *quote-char* #\"
+  "The character which designates the quoting character parsing delimited files")
+(defparameter *newline-char* #\Newline
+  "The character that defines a new line when parsing csv files")
 
