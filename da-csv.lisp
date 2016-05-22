@@ -16,7 +16,7 @@
 (defvar *newline-char* #\Newline
   "The character that defines a new line when parsing csv files")
 (defvar *read-buffer-size* 1048576
-  "The size of the buffer arrays used by da-csv to slurp/buffer delimited files")
+  "The size of the buffer arrays used by da-csv (in bytes) to slurp/buffer delimited files")
 
 (defclass delimited-object ()
   ((delimiter
@@ -112,3 +112,35 @@
     :initform nil
     :accessor confirmed-irregular
     :documentation "If the delimited file is believed to be irregular in nature, that is to say, that each row does not contain a similar number of variables, we can set this slot to T to indicate that fact.")))
+
+(defun make-parsing-state ()
+  "Creates an array representing the state of a csv parsing operation
+   Values are binary, and Indexes are equivalent to
+   0: in atom
+   1: in quote
+   2: possible-double-quote
+   3: file-position"
+  
+  (make-array 4 :element-type 'fixnum))
+
+(defmacro aref-twiddle (array index)
+  `(setf (aref ,array ,index)
+	 (if (= (aref ,array ,index) 0)
+	     1
+	     0)))
+
+(defmacro aref-0 (array index)
+  `(setf (aref ,array ,index) 0))
+    
+(defun view-char-update-state (state-array char &optional
+					(separator *delimiter*)
+					(quote-char *quote-char*)
+					(newline-char *newline-char*))
+
+  ;;We've just seen a character, so we should increment the state
+  ;;of where we are in a delimited file/
+  (incf (aref state-array 4))
+
+					
+  )
+
