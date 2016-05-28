@@ -113,21 +113,51 @@
     :accessor confirmed-irregular
     :documentation "If the delimited file is believed to be irregular in nature, that is to say, that each row does not contain a similar number of variables, we can set this slot to T to indicate that fact.")))
 
-(defun make-parsing-state ()
+(defun make-parse-state ()
   "Creates an array representing the state of a csv parsing operation
    Values are binary, and Indexes are equivalent to
-   0: in atom
-   1: in quote
-   2: possible-double-quote
-   3: file-position"
+   0: in field
+   1: in row
+   2: saw-quote
+   4: file-position"
   
   (make-array 4 :element-type 'fixnum))
 
-(defmacro aref-twiddle (array index)
-  `(setf (aref ,array ,index)
-	 (if (= (aref ,array ,index) 0)
-	     1
-	     0)))
+;;twiddle a array element between the two binary values of 1 and 0
+(defun aref-twiddle (state-array index)
+  (setf (aref array index)
+	(if (= (aref array index) 0)
+	    1
+	    0)))
+
+(defun field-twiddle (state-array)
+  (aref-twiddle state-array 0))
+
+(defun row-twiddle (state-array)
+  (aref-twiddle state-array 1))
+
+(defun saw-quote-twiddle (state-array)
+  (aref-twiddle state-array 2))
+
+(defun incf-file-pos (state-array)
+  (incf (aref state-array 3)))
+
+(defun in-field? (state-array)
+ (if  (= (aref state-array 0) 1)  
+      T
+      NIL))
+
+(defun in-row? (state-array)
+  (if (= (aref state-array 1) 1)
+      T
+      NIL))
+
+(defun saw-quote? (state-array)
+  (if (= (aref state-array 2) 1)
+      T
+      NIL))
+
+;;Set an array element to 0 
 
 (defmacro aref-0 (array index)
   `(setf (aref ,array ,index) 0))
@@ -137,9 +167,67 @@
 					(quote-char *quote-char*)
 					(newline-char *newline-char*))
 
+  ;; If we are in a state where we're in nothing and have seen nothing
+  
+  (if (and (null (in-field? state-array))
+	   (null (in-row? state-array))
+	   (null (saw-quote? state-array)))
+  
+            ;; Not in anything, seen nothing - see quote
+      (cond ((eql char quote-char)
+	     ())
+	    
+
+	    ;; Not in anything, seen nothing - see newline-char	     
+	    ;; I don't think that one should happen, but lets take care of it anyway.
+	    ((eql char newline-char)
+	     ())
+
+	    ;; Not in anything, seen nothing - see separator
+	    ((eql char separator)
+	     ())
+
+	    ;; Not in anything, seen nothing - see non-special-character
+	    (t
+	     ())))
+
+  ;; If we are in a state where we're in a field
+  ;; (and must implicitly therefore also be in a row)
+  ;; and have not seen a quote
+
+  (if (and (in-field? state-array)
+	   (null (saw-quote? state-array)))
+      (cond (()())))
+  
+  ;; If we are in a state where we're in a field
+  ;; and we have seen a quote
+
+  (if (and (in-field? state-array)
+	   (saw-quote? state-array))
+      (cond (()())))
+
+  ;; If we are in a state where we're not in a field, but we are in a row
+  ;; and we haven't seen a quote.
+
+  (if (and (null (in-field? state-array))
+	   (in-row? state-array)
+	   (null (saw-quote? state-array)))
+      (cond (()())))
+
+  
+  ;; If we are in a state where we're not in a field, but we are in a row
+  ;; and we have seen a quote.
+
+  (if (and (null (in-field? state-array))
+	   (in-row? state-array)
+	   (saw-quote? state-array))
+      (cond (()())))
+
+		     
   ;;We've just seen a character, so we should increment the state
   ;;of where we are in a delimited file/
-  (incf (aref state-array 4))
+  (incf (aref state-array 3))
+  
 
 					
   )
