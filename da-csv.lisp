@@ -115,7 +115,7 @@
 
 ;;; The csv finite state machine is the base level parser of csv files.
 ;;; It doesn't do anything except take in a character and transition
-;;; states. The decision of what to do when states transition is
+;;; states. The decision of what to do as abd when states transition is
 ;;; left to a higher level function.
 
 ;;; Believe it or not, there are 6 possible parsing states
@@ -128,8 +128,9 @@
 ;;; 1: Basic character: saw a vanilla character and we weren't in a quote.
 ;;;    Expected course of action if we're monitoring this is to accept that
 ;;;    character as valid output for a field.
-;;; 2: Between fields: seen in the case of seeing a significant delimiter
-;;;    character.  Don't want to output it, but its a signal that a field has ended.
+;;; 2: Between fields: seen in the case of certain syntactically significant
+;;;    characters.  Its a signal that a field has ended,
+;;;    but not a row.
 ;;; 3: Quote at beginning of field: What the name says.  We can transition to state
 ;;;    3 only from state 0 or 2.
 ;;; 4: Non-quote character seen while in quote field.  Very similar behaviour to state 1
@@ -143,12 +144,15 @@
 ;;;    N - See newline character
 ;;;    D - See delimiter character
 ;;;    Q - See quote character
-;;;    E - Everything else
+;;;    E - See everything else
 ;;;
 ;;; The mapping of states and transitions is thus as follows:
 ;;; If a transition is not included for a state, it is because
 ;;; this is an undefined/erroneous transition for that particular
-;;; state if we are dealing with a parsable csv file.
+;;; state if we are dealing with a parsable csv file, and there's
+;;; no obviously sensible interpretation for how to parse that
+;;; kind of transition while maintaining the syntax/integrity of
+;;; a csv file.
 ;;;
 ;;; 0: N -> 0, E -> 1, D -> 2, Q -> 3, 
 ;;; 1: N -> 0, E -> 1, D -> 2
@@ -158,10 +162,10 @@
 ;;; 5: N -> 0,         D -> 2, Q -> 4
 ;;;
 
-(declaim inline csv-fs-machine)
+;;(declaim (inline csv-fs-machine))
 
 (defun csv-fs-machine (state seen delimiter newline quote)
-  "CSV Finite State Machine - reads chars and returns transitioned states"
+  "CSV Finite State Machine - reads chars and returns transitioned csv states - optimised to only take valid inputs"
   (declare (character seen delimiter newline quote)
 	   (fixnum state)
 	   (optimize (speed 3)))
@@ -192,3 +196,81 @@
 	       ((char= seen delimiter) 2)
 	       (t 0))))) ; must be a newline, because other characters would be invalid.
 
+
+;;; The csv buffer manipulator (because I can't think of a better name) takes in the current
+;;; state of the csv stream, as well as a host of other information and buffers.
+;;; Using the state information, it will then distribute chars to the right points in
+;;; the char-buffer fed to it, insert field and row end points into their respective buffers
+;;; and return all these things and the correctly incremented insertion indexes.
+;;; The buffers are mutated in place, but the calling code will have to establish exactly
+;;; what to do with this cornucopia of information returned from the csv-buffer manipulator.
+
+(defun csv-buffer-manipulator (state char delimiter newline quote
+			       char-buff field-buff row-buff
+			       char-insert-index field-insert-index row-insert-index)
+  "A function that understands how to manipulate chars read from a stateful csv stream, manipulate
+   the various buffers and incremebt buffer insertion points as needed.  Optimised to only take 
+   valid inputs"
+  (declare (fixnum state char-insert-index field-insert-index row-insert-index)
+	   (character char delimiter newline quote)
+	   (simple-string char-buff)
+	   (type (simple-array fixnum)  field-buff row-buff)
+	   (optimize (speed 3)))
+  
+  (let ((new-state (csv-fs-machine state char delimiter newline quote)))
+    (declare (dynamic-extent new-state))
+    (cond ((or (eql new-state 1)
+	       (eql new-state 4))
+	   (progn
+	     (setf (aref char-buff char-insert-index) char)
+	     (incf char-insert-index)))
+	  ((eql new-state 2)
+	   (progn
+	     (setf (aref field-buff field-insert-index) char-insert-index)
+	     (incf field-insert-index)))
+	  ((eql new-state 0)
+	   (progn
+	     (setf (aref field-buff field-insert-index) char-insert-index
+		   (aref row-buff row-insert-index) char-insert-index)
+	     (incf field-insert-index)
+	     (incf row-insert-index)))
+	  (t nil))
+
+    (values new-state char-buff field-buff row-buff char-insert-index field-insert-index row-insert-index)))
+
+
+;;;Quick test of the buffer-manipulator
+;(let* ((string "cat,dog,person,what,#\Newline")
+;	       (char-buff (make-array 30 :element-type 'character))
+;	       (field-buff (make-array 30 :element-type 'fixnum))
+;	       (row-buff (make-array 30 :element-type 'fixnum))
+;	       (state 0)
+;	       (char-insert-index 0)
+;	       (field-insert-index 0)
+;	       (row-insert-index 0))
+;	  
+;	  (loop for char across string
+;	       
+;	     do (multiple-value-setq (state  
+;				      char-buff
+;				      field-buff
+;				      row-buff
+;				      char-insert-index
+;				      field-insert-index
+;				      row-insert-index)
+;				          
+;				      
+;				      (csv-buffer-manipulator state 
+;							      char 
+;							      #\, 
+;							      #\Newline 
+;							      #\"
+;				       char-buff field-buff row-buff
+;				       char-insert-index field-insert-index row-insert-index)))
+;	  (print (list state  
+;				      char-buff
+;				      field-buff
+;				      row-buff
+;				      char-insert-index
+;				      field-insert-index
+;				      row-insert-index)))
